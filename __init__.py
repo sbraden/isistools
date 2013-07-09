@@ -64,6 +64,34 @@ def spice(image, model):
         model      = model
     )
 
+def apply_exposure_time(image, exposure_time):
+    isis.fx(f1=image.dn, 
+            to=image.cal,
+            equation=f1/exposure_time
+    )
+
+# a "frame" gets passed into this function
+def calibrate_wac(image, model, units):
+    spice(image, model)
+
+    if units=='calibrated_dn':
+        isis.lrowaccal(
+            from_       = image,
+            to          = image.dn,
+            RADIOMETRIC = 'FALSE'
+        )
+        apply_exposure_time(image, get_exposure_time(image))
+    elif units=='reflectance':
+        isis.lrowaccal(
+            from_       = image,
+            to          = image.cal,
+            RADIOMETRIC = 'TRUE'
+        )
+    else: print "Improper image units!"
+
+
+# TODO: fix input and output here
+# a frame is passed in here
 def project_wac(image, map):
     """
     Args: 
@@ -78,7 +106,8 @@ def project_wac(image, map):
     )
 
 
-def automos(images, mosaic):
+# a "frame" gets passed into this function
+def create_mosaic(images, mosaic):
     """
     Args: 
         images: files to mosaic together
@@ -93,11 +122,21 @@ def automos(images, mosaic):
             mosaic   = mosaic
         )
 
-def create_mosaic(subname):
-    os.system('ls '+subname+'*.proj.cub '+ subname+'*.proj.cub > proj.lis')
-    isis.automos(fromlist=proj.lis, mosaic=subname+'.mos.cub')
-    os.system('rm -f proj.lis') # CLEAN UP: there is a better way to run this
-    pass
+# gets passed frames
+def mosrange(images, map):
+    with NamedTemporaryFile() as listfile:
+        write_file_list(listfile, [image.photrim.cub for image in images])
+        # listfile.flush() makes sure list is in on disk
+        listfile.flush()
+
+        isis.mosrange(
+            fromlist   = listfile.name,
+            to         = map,
+            precision  = 2,
+            projection = 'sinusoidal',
+            londir     = 'positiveeast',
+            londom     = 180
+        )
 
 def makemap(region, feature, scale, proj):
     '''
@@ -146,32 +185,6 @@ def makemap_freescale(region, feature, proj, listfile):
                      )
     pass
 
-def process_frames(frames, color, name, model, feature): 
-    '''
-    Processes WAC frames (uv or vis) into regionally constrained images
-    LROWACCAL calibrates pixels to DN
-    '''
-    subname = name+'.'+color
-    mapname = feature+'.map'
-
-    for frame in frames:
-        isis.spiceinit(from_='+frame+', 
-                       spksmithed='true', 
-                       shape='user', 
-                       model=model
-                       )
-        isis.lrowaccal(from_='+frame+',
-                       to='+frame+'.cal,
-                       RADIOMETRIC=FALSE
-                       )
-        isis.cam2map(from_='+frame+'.cal,
-                     to='+frame+'.proj,
-                     map=mapname,
-                     matchmap=true
-                     )
-
-    create_mosaic(subname)
-
 # Getting information from labels and images:
 
 def band_means(bands):
@@ -180,9 +193,14 @@ def band_means(bands):
 def band_stds(bands):
     return bands.std(axis=(1,2))
 
-def get_img_stats(name):
+def img_stats(name):
     cube = CubeFile.open(name)
     return band_means(cube.data), band_stds(cube.data)
+
+def number_null_pixels(image):
+    output = isis.stats.check_output(from_=image)
+    results = parse_label(GROUP_RE.search(output).group(1))['Results']
+    return results['NullPixels']
 
 def get_pixel_scale(img_name):
     """
@@ -194,6 +212,18 @@ def get_pixel_scale(img_name):
     pixel_scale = parse_label(output)['GroundPoint']['SampleResolution']
     
     return pixel_scale
+
+def get_exposure_time(image):
+    """
+    Exposure time is in units of milliseconds. Images in calibrated DN and need 
+    to be divided by exposure time. Exposure time is the same for UV and VIS 
+    observations.
+    """
+    # Get label info
+    label = parse_file_label(image)
+    instrument = label['IsisCube']['Instrument']
+    
+    return instrument['ExposureDuration']
 
 def get_img_center(img_name):
 	"""
