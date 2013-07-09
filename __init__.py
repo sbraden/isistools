@@ -12,7 +12,7 @@ from pysis.util.file_manipulation import ImageName, write_file_list
 GROUP_RE = re.compile(r'(Group.*End_Group)', re.DOTALL)
 content_re = re.compile(r'(Group.*End_Group)', re.DOTALL)
 
-# does this need to go at the top?:
+# does this need to go at the top?: change
 
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
