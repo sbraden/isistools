@@ -52,11 +52,11 @@ def get_center_lat_lon(minlat, maxlat, minlon, maxlon):
 # Wrappers for isis functions:
 
 def spice(image, model):
-	"""
-	Args:
-		image: image filename
-		model: full path to dtm model name
-	"""
+    """
+    Args:
+        image: image filename
+        model: full path to dtm model name
+    """
     isis.spiceinit(
         from_      = image,
         spksmithed = True,
@@ -64,11 +64,27 @@ def spice(image, model):
         model      = model
     )
 
+def phocube(image):
+    """
+    Calls isis phocube. Input file should be projected. 
+    Input one band only!
+    """
+    isis.phocube(from_=str(image.cub)+'+1',
+                to=image.phobands.cub,
+                phase='true',
+                localemission='true',
+                localincidence='true',
+                SubSolarGroundAzimuth='true',
+                latitude='false',
+                longitude='false'
+    )
+
 def apply_exposure_time(image, exposure_time):
-    isis.fx(f1=image.dn, 
-            to=image.cal,
+    isis.fx(f1=image.dn.cub, 
+            to=image.cal.cub,
             equation=f1/exposure_time
     )
+    os.remove(image.dn.cub) # cleanup
 
 # a "frame" gets passed into this function
 def calibrate_wac(image, model, units):
@@ -76,15 +92,15 @@ def calibrate_wac(image, model, units):
 
     if units=='calibrated_dn':
         isis.lrowaccal(
-            from_       = image,
-            to          = image.dn,
+            from_       = image.cub,
+            to          = image.dn.cub,
             RADIOMETRIC = 'FALSE'
         )
         apply_exposure_time(image, get_exposure_time(image))
     elif units=='reflectance':
         isis.lrowaccal(
-            from_       = image,
-            to          = image.cal,
+            from_       = image.cub,
+            to          = image.cal.cub,
             RADIOMETRIC = 'TRUE'
         )
     else: print "Improper image units!"
@@ -151,8 +167,8 @@ def makemap(region, feature, scale, proj):
                      clat=clat,
                      clon=clon,
                      rngopt='user',
-                     resopt='mpp'
-                     scale=scale,
+                     resopt='mpp',
+                     resolution=scale,
                      minlat=region[0],
                      maxlat=region[1],
                      minlon=region[2],
@@ -177,13 +193,22 @@ def makemap_freescale(region, feature, proj, listfile):
                      clon=clon,
                      rngopt='user',
                      resopt='calc'
-                     scale=scale,
+                     resolution=scale,
                      minlat=region[0],
                      maxlat=region[1],
                      minlon=region[2],
                      maxlon=region[3]
                      )
     pass
+
+def check_for_nulls(image, maxnulls):
+    nulls = number_null_pixels(image.cub)
+    if int(nulls) > maxnulls:
+        print "Image has too many NULLS: %s", image.cub
+        os.remove(str(image)+'*')
+        return False
+    else:
+        return True
 
 # Getting information from labels and images:
 
@@ -226,10 +251,10 @@ def get_exposure_time(image):
     return instrument['ExposureDuration']
 
 def get_img_center(img_name):
-	"""
-	Args: image filename
-	Returns: center latitude and center longitude of image
-	"""
+    """
+    Args: image filename
+    Returns: center latitude and center longitude of image
+    """
     output = isis.campt.check_output(from_=img_name)
     output = content_re.search(output).group(1) 
     clon = parse_label(output)['GroundPoint']['PositiveEast360Longitude']
@@ -277,3 +302,22 @@ def get_spectra(name):
     )
 
     return pd.concat([avgs, stds])
+
+
+def get_pho_bands(image):
+    """
+    Calls phocube on both even and odd parts of the wac and creates a
+    continuous version using handmos. Uses map-projected cubes.
+    Uses 415 nm band as input (band 1 of the vis frames)
+    """
+    phocube(image.odd.proj.cub)
+    phocube(image.even.proj.cub)
+
+    # handmosaic the odd frames into the even frames
+    isis.handmos(from_=image.odd.phoband.cub,
+                mosaic=image.even.phoband.cub,
+                priority='ontop'
+    )
+    # shutil.copyfile(src, dst)
+    shutil.copyfile(image.even.phoband.cub, image.phoband.cub)
+    os.remove(image.odd.phoband.cub, image.even.phoband.cub) #cleanup
