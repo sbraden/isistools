@@ -10,7 +10,7 @@ from pysis.util.file_manipulation import ImageName, write_file_list
 
 
 GROUP_RE = re.compile(r'(Group.*End_Group)', re.DOTALL)
-content_re = re.compile(r'(Group.*End_Group)', re.DOTALL)
+# content_re = re.compile(r'(Group.*End_Group)', re.DOTALL)
 
 # does this need to go at the top?: change
 
@@ -32,6 +32,18 @@ sys.path.insert(0, path.dirname(__file__))
 
 # TODO: normalize inputs to functions:
 # filename or image, not "name"
+
+def read_regions(filename):
+    """
+    Args: yaml filename in region format
+    Returns: datapath dict, region dict
+    """
+    places = yaml.load(open(places))
+    datapath = places[feature][0]['data']
+    region = places[feature][0]['region']
+
+    return datapath, region
+
 
 # Do I need this function? can't I just glob?
 def read_in_list(filename):    
@@ -192,7 +204,7 @@ def makemap_freescale(region, feature, proj, listfile):
                      clat=clat,
                      clon=clon,
                      rngopt='user',
-                     resopt='calc'
+                     resopt='calc',
                      resolution=scale,
                      minlat=region[0],
                      maxlat=region[1],
@@ -233,7 +245,7 @@ def get_pixel_scale(img_name):
     Returns: the pixel_scale
     """
     output = isis.campt.check_output(from_=img_name)
-    output = content_re.search(output).group(1) 
+    output = GROUP_RE.search(output).group(1) 
     pixel_scale = parse_label(output)['GroundPoint']['SampleResolution']
     
     return pixel_scale
@@ -256,7 +268,7 @@ def get_img_center(img_name):
     Returns: center latitude and center longitude of image
     """
     output = isis.campt.check_output(from_=img_name)
-    output = content_re.search(output).group(1) 
+    output = GROUP_RE.search(output).group(1) 
     clon = parse_label(output)['GroundPoint']['PositiveEast360Longitude']
     clat = parse_label(output)['GroundPoint']['PlanetographicLatitude']
 
