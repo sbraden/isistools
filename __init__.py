@@ -257,7 +257,7 @@ def get_proj_pixel_scale(img_name):
     Args: image filename
     Returns: the pixel_scale
     """
-    label = parse_file_label(image)
+    label = parse_file_label(img_name)
     mapping = label['IsisCube']['Mapping']
     pixel_scale = mapping['PixelResolution']
     
