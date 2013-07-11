@@ -141,7 +141,7 @@ def create_mosaic(images, mosaic):
         images: files to mosaic together
         mosaic: output mosaic filename
     """
-    with listfile as NamedTemporaryFile():
+    with NamedTemporaryFile() as listfile:
         write_file_list(listfile, [image.proj.cub for image in images])
         listfile.flush()
 
