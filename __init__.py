@@ -239,7 +239,9 @@ def number_null_pixels(image):
     results = parse_label(GROUP_RE.search(output).group(1))['Results']
     return results['NullPixels']
 
-def get_pixel_scale(img_name):
+# TODO: write a function that will get the pixel scale no matter
+# the file type: projected or unprojected (with spice)
+def get_native_pixel_scale(img_name):
     """
     Args: image filename
     Returns: the pixel_scale
@@ -247,6 +249,17 @@ def get_pixel_scale(img_name):
     output = isis.campt.check_output(from_=img_name)
     output = GROUP_RE.search(output).group(1) 
     pixel_scale = parse_label(output)['GroundPoint']['SampleResolution']
+    
+    return pixel_scale
+
+def get_proj_pixel_scale(img_name):
+    """
+    Args: image filename
+    Returns: the pixel_scale
+    """
+    label = parse_file_label(image)
+    mapping = label['IsisCube']['Mapping']
+    pixel_scale = mapping['PixelResolution']
     
     return pixel_scale
 
