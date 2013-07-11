@@ -261,7 +261,7 @@ def get_proj_pixel_scale(img_name):
     mapping = label['IsisCube']['Mapping']
     pixel_scale = mapping['PixelResolution']
     
-    return pixel_scale
+    return pixel_scale['value']
 
 def get_exposure_time(image):
     """
