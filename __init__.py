@@ -151,6 +151,7 @@ def create_mosaic(images, mosaic):
         )
 
 # gets passed frames
+# TODO: map cannot be called map
 def mosrange(images, map):
     with NamedTemporaryFile() as listfile:
         write_file_list(listfile, [image.photrim.cub for image in images])
